@@ -1,2 +1,2 @@
-# SOPE-Trabalho2
+# SOPE-Project2
 Second Project of Operative Systems

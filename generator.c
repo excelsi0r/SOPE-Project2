@@ -3,32 +3,24 @@
 #include <unistd.h>
 #include <time.h>
 #include <pthread.h>
-
-#define FIFON "/tmp/fifoN"
-#define FIFOS "/tmp/fifoS"
-#define FIFOO "/tmp/fifoO"
-#define FIFOE "/tmp/fifoE"
-
-struct vehicle
-{
-  int id;
-  char port;
-};
+#include "defines.h"
 
 
 void * tvehicle(void * avg)
 {
+  
+  Vehicle v = *(Vehicle *) avg;  
   pthread_detach(pthread_self());
-  int vid = *(int*) avg;
-  free(avg);
   
-  /* gerar restantes caracteristicas, porta, tempo estacionamento*/
+  printf("%c\n", v.port);
   
-  /*criar fifo unico para leitura, abrir RW para não bloquear (nome do FIFO unico imporatante)*/
+  // gerar restantes caracteristicas, porta, tempo estacionamento
+  
+  //criar fifo unico para leitura, abrir RW para não bloquear (nome do FIFO unico imporatante)
   
   //cuidado semaforo 
   //sem_wait() iniciar a 1
-  
+  /*
   int fd = open(FIFON, O_WRONLY | O_NONBLOCK);
   if(fd != -1)
   {
@@ -40,13 +32,17 @@ void * tvehicle(void * avg)
     read(....);
   
   }
+  */
   //apagar fifo
   //sem_post
+  
   return NULL;
 }
 
 int main(int argc, const char * argv[])
 {
+    srand(time(NULL));
+    
     //variables declaration
     long tps;
     double time_unit;
@@ -54,6 +50,8 @@ int main(int argc, const char * argv[])
     double elapsed_time = 0.0;
     int id = 0;
     double duration;
+    
+    
     
     //test arguments
     if(argc != 3)
@@ -67,8 +65,6 @@ int main(int argc, const char * argv[])
     time_unit = (double) atoi (argv[2])/tps;
     duration = (double) atoi(argv[1]);
     
-    //seed initialization
-    srand(time(NULL));
     
      while(elapsed_time <= duration)
      {
@@ -85,9 +81,13 @@ int main(int argc, const char * argv[])
         }
         else{}
         
-        int nr (int *) malloc(sizeof(in));
-        *nr = id++;
-        pthread_create(&tid, NULL, tvehicle, nr);
+        
+        Vehicle* v = (Vehicle*) malloc(sizeof(Vehicle));
+        v->id = id;
+        id++;
+        v->port = 'N';
+        pthread_create(&tid, NULL, tvehicle, v);
+        
         
      }
     return 0;

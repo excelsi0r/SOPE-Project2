@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include "defines.h"
 
 
 void * tusher(void * avg)

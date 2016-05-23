@@ -5,90 +5,118 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include "defines.h"
 
+int free_places;
+int closed;
 
-void * tusher(void * avg)
+void * tpark_helper(void * avg)
 {
-  //arrumar
+  pthread_detach(pthread_self());
+  return NULL;
 }
 
 void * tcontroller(void * avg)
 {
-  int close = 0;
+  char port = *(char *) avg;
+  int fd;
+  Vehicle vehicle;
+   
+  if(port == 'N')
+  {
+    mkfifo(FIFON, 0600);
+    fd = open(FIFON, O_WRONLY);
+  }
+  else if(port == 'S')
+  {
+    mkfifo(FIFOS, 0600);
+    fd = open(FIFOS, O_WRONLY);
+  }
+  else if(port == 'W')
+  {
+    mkfifo(FIFOW, 0600);
+    fd = open(FIFOW, O_WRONLY);
+  }
+  else if(port == 'E')
+  {
+     mkfifo(FIFOE, 0600);
+     fd = open(FIFOE, O_WRONLY);
+  }
   
-  //criar extensao para N, S, O
-  int fd = open(FIFON, O_RDONLY);
-  
-  while(read(fd, &vehicle, sizeof(vehicle) != 0)
+  while(read(fd, &vehicle, sizeof(vehicle) != 0))
   {
      if(vehicle.id == -1)
-      closed = 1;
-     else if(closed)
+     {
+      //parque fechado
+     }
+     else if(closed == 1)
      {
       //send back
      }
      else
      {
-       //criar arrumador e passar vehicle
+        pthread_t tid;
+        pthread_create(&tid, NULL, tpark_helper, vehicle);     
      }
   }
+  
   close(fd);
   return NULL;
-
 }
 
 
+void create_port_threads(pthread_t* tidN, pthread_t* tidS, pthread_t* tidW, pthread_t* tidE)
+{
+    char* c = (char *) malloc(sizeof(char));
+    (*c) = 'N';
+    pthread_create(tidN, NULL, tcontroller, c);
+    (*c) = 'S';
+    pthread_create(tidS, NULL, tcontroller, c);
+    (*c) = 'W';
+    pthread_create(tidW, NULL, tcontroller, c);
+    (*c) = 'E';
+    pthread_create(tidE, NULL, tcontroller, c);
+    free(c);
+}
 
 int main(int argc, const char * argv[])
 {
     //variables declaration
-    int dp, fplaces;
+    int fplaces;
     int duration;
-    pthread_t tidN, tidS, tidO, tidE;
-    int fdN, fdS, fdO, fdE;
+    int fdN;
+    pthread_t tidN, tidS, tidW, tidE;
+    Vehicle* vehicle_stop = (Vehicle*) malloc(sizeof(Vehicle));
     
-
     //test arguments
     if(argc != 3)
     {
       printf("Usage %s <FREE_SPOTS_NUMBER> <TIME_UNTIL_CLOSE>\n", argv[0]);
+      free(vehicle_stop);
       return 1;
     }
     
     //variable initialization
-    dp = fplaces = atoi(argv[1]);
+    free_places = fplaces = atoi(argv[1]);
     duration = atoi(argv[2]);
     
-    //creating fifos
-    mkfifo(FIFON, 0600);
-    pthread_create(&tidN, NULL, tcontroller, NULL);
-    fdN = open(FIFON, O_WRONLY);
+    printf("%d, %d\n",free_places,fplaces);
     
-    mkfifo(FIFOS, 0600);
-    pthread_create(&tidS, NULL, tcontroller, NULL);
-    fdN = open(FIFOS, O_WRONLY);
-    
-    mkfifo(FIFOE, 0600);
-    pthread_create(&tidE, NULL, tcontroller, NULL);
-    fdN = open(FIFOE, O_WRONLY);
-    
-    mkfifo(FIFOO, 0600);
-    pthread_create(&tidO, NULL, tcontroller, NULL);
-    fdN = open(FIFOO, O_WRONLY);
-    
+    //creating threads and executing
+    create_port_threads(&tidN, &tidS, &tidW, &tidE);
+    closed = 0;
     sleep(duration);
+    closed = 1;
     
-    //falta criar vehicle struct com id = -1;
-    write(fdN, &vehicle_stop, sizeof(vehicle));
+    //creating the stop vehicle and closing program
+    fdN = open(FIFON, O_WRONLY);
+    vehicle_stop->id = -1;
+    write(fdN, &vehicle_stop, sizeof(Vehicle));
+    free(vehicle_stop);
     close(fdN);
-    
-    //espera outros threads
-    
     unlink(FIFON);
-    unlink(FIFOS);
-    unlink(FIFOE);
-    unlink(FIFOO);
-    
+    /*falta funçao para fechar threads*/
+
     return 0;
 }

@@ -97,6 +97,8 @@ void * tvehicle(void * avg)
   unlink(v.fifo);
   //sem_post
   
+  
+  pthread_exit(0);
   return NULL;
 }
 
@@ -155,6 +157,5 @@ int main(int argc, const char * argv[])
      
      free(v);
      pthread_exit(NULL);
-     
-    return 0;
 }
+  

@@ -60,17 +60,20 @@ void * tpark_helper(void * avg)
 
 void * tcontroller_N(void * avg)
 {
+ 
   int fd;
   Vehicle vehicle;
-   
+ 
+  
   mkfifo(FIFON, 0600);
   fd = open(FIFON, O_RDONLY); 
-   
+
   
   while(read(fd, &vehicle, sizeof(vehicle)) != 0)
   {
-     if(vehicle.id == -1)
+     if(vehicle.id == 0)
      {
+      closed = 1;
       break;
      }
      else
@@ -82,6 +85,7 @@ void * tcontroller_N(void * avg)
  
 
   close(fd);
+  printf("exiting N\n");
   pthread_exit(0);
   return NULL;
 }
@@ -96,8 +100,10 @@ void * tcontroller_E(void * avg)
 
   while(read(fd, &vehicle, sizeof(vehicle)) != 0)
   {
-     if(vehicle.id == -1)
+
+     if(vehicle.id == 0)
      {
+     closed = 1;
       break;
      }
      else
@@ -109,6 +115,7 @@ void * tcontroller_E(void * avg)
   
   
   close(fd);
+  printf("exiting E\n");
   pthread_exit(0);
   return NULL;
 }
@@ -123,8 +130,10 @@ void * tcontroller_W(void * avg)
 
   while(read(fd, &vehicle, sizeof(vehicle)) != 0)
   {
-     if(vehicle.id == -1)
+
+     if(vehicle.id == 0)
      {
+      closed = 1;
       break;
      }
      else
@@ -136,6 +145,7 @@ void * tcontroller_W(void * avg)
   
   
   close(fd);
+  printf("exiting W\n");
   pthread_exit(0);
   return NULL;
 }
@@ -146,12 +156,14 @@ void * tcontroller_S(void * avg)
   Vehicle vehicle; 
    
   mkfifo(FIFOS, 0600);
+  
   fd = open(FIFOS, O_RDONLY);   
 
   while(read(fd, &vehicle, sizeof(vehicle)) != 0)
   {
-     if(vehicle.id == -1)
+     if(vehicle.id == 0)
      {
+      closed = 1;
       break;
      }
      else
@@ -162,6 +174,7 @@ void * tcontroller_S(void * avg)
   }
   
   close(fd);
+  printf("exiting S\n");
   pthread_exit(0);
   return NULL;
 }
@@ -206,11 +219,11 @@ void write_park_log(Vehicle * v, int state)
   
   if(state == EXITING)
   {
-    sprintf(str, "%7li ; %7d ; %7c ; %s\n", ticks, free_places, id, observ);
+    sprintf(str, "%7li ; %5d ; %7d ; %s\n", ticks, free_places, id, observ);
   }
   else
   {
-    sprintf(str, "%7li ; %7d ; %7d ; %s\n", ticks, free_places, id,observ);
+    sprintf(str, "%7li ; %5d ; %7d ; %s\n", ticks, free_places, id,observ);
   }
   
   write(log_park, str, strlen(str));
@@ -233,6 +246,7 @@ int main(int argc, const char * argv[])
       free(vehicle_stop);
       return 1;
     }
+    closed = 0;
     
     //variable initialization
     free_places = fplaces = atoi(argv[1]);
@@ -244,37 +258,35 @@ int main(int argc, const char * argv[])
     pthread_create(&tidS, NULL, tcontroller_S, NULL); 
     pthread_create(&tidW, NULL, tcontroller_W, NULL); 
     pthread_create(&tidE, NULL, tcontroller_E, NULL); 
-    
-    closed = 0;
+   
+   
     sleep(duration);
     closed = 1;
     
-    //creating the stop vehicle and closing program
-    vehicle_stop->id = -1;
     fdN = open(FIFON, O_WRONLY);
     fdS = open(FIFOS, O_WRONLY);
     fdW = open(FIFOW, O_WRONLY);
     fdE = open(FIFOE, O_WRONLY);
+    
+    //creating the stop vehicle and closing program
+    vehicle_stop->id = 0;
     write(fdN, &vehicle_stop, sizeof(Vehicle));
     write(fdS, &vehicle_stop, sizeof(Vehicle));
     write(fdW, &vehicle_stop, sizeof(Vehicle));
     write(fdE, &vehicle_stop, sizeof(Vehicle));
+
     free(vehicle_stop);
     close(fdN);
     close(fdS);
     close(fdW);
     close(fdE);
-    unlink(FIFON);
-    unlink(FIFOS);
-    unlink(FIFOW);
-    unlink(FIFOE);
-    
     
     pthread_join(tidN,NULL);
     pthread_join(tidS,NULL);
     pthread_join(tidW,NULL);
     pthread_join(tidE,NULL);
     
+    unlink(FIFON); unlink(FIFOS); unlink(FIFOE); unlink(FIFOW);
     pthread_exit(NULL);
     return 0;
 }

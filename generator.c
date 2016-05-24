@@ -83,6 +83,7 @@ void * tvehicle(void * avg)
     write(fd_write, &v, sizeof(Vehicle));
     close(fd_write);
     
+    unlink(v.fifo);
     mkfifo(v.fifo, 0600);
     fd_read = open(v.fifo, O_RDONLY);
   
@@ -103,7 +104,7 @@ void * tvehicle(void * avg)
   }
   else
   {
-    printf("Couldnt find fifo\n");
+    printf("Parque fechado\n");
   }
   
   close(fd_read);
@@ -180,7 +181,7 @@ int main(int argc, const char * argv[])
     double time_unit;
     pthread_t tid;
     double elapsed_time = 0.0;
-    int id = 0;
+    int id = 1;
     double duration;
     Vehicle* v = (Vehicle*) malloc(sizeof(Vehicle));
     

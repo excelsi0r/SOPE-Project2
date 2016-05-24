@@ -6,10 +6,15 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <string.h>
 #include "defines.h"
 
 int free_places;
 int closed;
+
+int log_park;
+
+void write_park_log(Vehicle * v, int state);
 
 void * tpark_helper(void * avg)
 {
@@ -24,22 +29,27 @@ void * tpark_helper(void * avg)
   
   if(free_places > 0 && closed != 1)
   {
+    
     park_state = ENTERING;
+    write_park_log(&vehicle, park_state);
     write(fd_write, &park_state, sizeof(int));
     free_places--;
     sleep(vehicle.park_time);
     free_places++;
     park_state = EXITING;
+    write_park_log(&vehicle, park_state);
     write(fd_write, &park_state, sizeof(int));
   }
   else if(closed == 1)
   {
     park_state = CLOSED;
+    write_park_log(&vehicle, park_state);
     write(fd_write, &park_state, sizeof(int));
   }
   else if(free_places <= 0)
   {
     park_state = FULL;
+    write_park_log(&vehicle, park_state);
     write(fd_write, &park_state, sizeof(int));
   }
   
@@ -156,6 +166,57 @@ void * tcontroller_S(void * avg)
   return NULL;
 }
 
+void create_park_log()
+{
+  FILE* file = fopen(PARK_LOG, "w");
+  fclose(file);
+  log_park = open(PARK_LOG, O_WRONLY | O_CREAT, 0600);
+  char str[] = "t(ticks) ; nlug ; id_viat ; observ\n";
+  write(log_park, str, strlen(str));
+   
+}
+
+void write_park_log(Vehicle * v, int state)
+{
+  long ticks = v->initial_tick;
+  int id = v->id;
+  char observ[MAX_BUF];
+  
+  char str[LONG_BUF];
+  
+  
+  switch(state)
+  {
+    case ENTERING:
+    strcpy(observ, "entered");
+    break;
+    case EXITING:
+    strcpy(observ, "exit");
+    break;
+    case FULL:
+    strcpy(observ, "full");
+    break;
+    case CLOSED:
+    strcpy(observ, "close");
+    break;
+    default:
+    return;
+    break;
+  }
+  
+  if(state == EXITING)
+  {
+    sprintf(str, "%7li ; %7d ; %7c ; %s\n", ticks, free_places, id, observ);
+  }
+  else
+  {
+    sprintf(str, "%7li ; %7d ; %7d ; %s\n", ticks, free_places, id,observ);
+  }
+  
+  write(log_park, str, strlen(str));
+  
+}
+
 int main(int argc, const char * argv[])
 {
     //variables declaration
@@ -176,7 +237,8 @@ int main(int argc, const char * argv[])
     //variable initialization
     free_places = fplaces = atoi(argv[1]);
     duration = atoi(argv[2]);
-    
+    create_park_log();
+        
     //creating threads and executing
     pthread_create(&tidN, NULL, tcontroller_N, NULL); 
     pthread_create(&tidS, NULL, tcontroller_S, NULL); 

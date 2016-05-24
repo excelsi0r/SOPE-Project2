@@ -9,6 +9,9 @@
 #include <string.h>
 #include "defines.h"
 
+int log_generator;
+
+void write_generator_log(Vehicle * v, int state);
 
 void generate_fifo_name(Vehicle* v)
 {
@@ -31,9 +34,11 @@ void generate_port(Vehicle* v)
   return;
 }
 
-void generate_time(Vehicle* v)
+void generate_time(Vehicle* v, long initial_t, double time_unit, long ticks_per_sec)
 {
-  v->park_time = 2.0;
+  v->initial_tick = initial_t;
+  v->tps = ticks_per_sec;
+  v->park_time = ((rand() % 10)+1)*time_unit;
   return;
 }
 
@@ -71,6 +76,8 @@ void * tvehicle(void * avg)
     fd_write = open(FIFOW, O_WRONLY | O_NONBLOCK);
   }
   
+  
+  
   if (fd_write != -1)
   {
     write(fd_write, &v, sizeof(Vehicle));
@@ -82,10 +89,16 @@ void * tvehicle(void * avg)
    if(fd_read != -1)
     {
       read(fd_read, &park_state, sizeof(int));
-      printf("park available entering\n");      
+      if(park_state == FULL || park_state == CLOSED)
+      {
+         write_generator_log(&v, park_state);  
+         close(fd_read);
+         unlink(v.fifo);  
+         pthread_exit(0);
+      }
+      write_generator_log(&v, park_state);  
       read(fd_read, &park_state, sizeof(int));
-      printf("exiting\n");
-      
+      write_generator_log(&v, park_state);      
     }
   }
   else
@@ -102,6 +115,60 @@ void * tvehicle(void * avg)
   return NULL;
 }
 
+void create_generator_log()
+{
+  FILE* file = fopen(GENERATOR_LOG, "w");
+  
+  fclose(file);
+  log_generator = open(GENERATOR_LOG, O_WRONLY | O_CREAT, 0600);
+  char str[] = "t(ticks); id_viat ; destin ; t_estacion ; t_vida ; observ\n";
+  write(log_generator, str, strlen(str));
+   
+}
+
+void write_generator_log(Vehicle * v, int state)
+{
+  //"t(ticks) ; id_viat ; destin ; t_estacion ; t_vida ; observ\n";
+  long ticks = v->initial_tick;
+  int id = v->id;
+  char port = v->port;
+  int estacion = (int) v->park_time * v->tps;
+  int tmp_vida = (int) ticks + estacion;
+  char observ[MAX_BUF];
+  
+  char str[LONG_BUF];
+  
+  
+  switch(state)
+  {
+    case ENTERING:
+    strcpy(observ, "entered");
+    break;
+    case EXITING:
+    strcpy(observ, "exit");
+    break;
+    case FULL:
+    strcpy(observ, "full");
+    break;
+    case CLOSED:
+    strcpy(observ, "close");
+    break;
+    default:
+    return;
+    break;
+  }
+  
+  if(state == EXITING)
+  {
+    sprintf(str, "%7li ; %7d ; %6c ; %10d ; %6d ; %s\n", ticks, id, port, estacion, tmp_vida, observ);
+  }
+  else
+  {
+    sprintf(str, "%7li ; %7d ; %6c ; %10d ;     ?  ; %s\n", ticks, id, port, estacion, observ);
+  }
+  
+  write(log_generator, str, strlen(str));
+}
 
 
 int main(int argc, const char * argv[])
@@ -129,6 +196,7 @@ int main(int argc, const char * argv[])
     tps = sysconf(_SC_CLK_TCK);
     time_unit = (double) atoi (argv[2])/tps;
     duration = (double) atoi(argv[1]);
+    create_generator_log();
     
     
      while(elapsed_time <= duration)
@@ -149,8 +217,9 @@ int main(int argc, const char * argv[])
         v->id = id;
         id++;
         generate_port(v);
-        generate_time(v);
+        generate_time(v,(long) tps*elapsed_time,time_unit, tps);
         generate_fifo_name(v);
+        
         pthread_create(&tid, NULL, tvehicle, v);     
         
      }

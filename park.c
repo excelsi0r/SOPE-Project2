@@ -7,12 +7,15 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <semaphore.h>
 #include "defines.h"
 
 int free_places;
 int closed;
-
 int log_park;
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mlog = PTHREAD_MUTEX_INITIALIZER;
+
 
 void write_park_log(Vehicle * v, int state);
 
@@ -27,35 +30,48 @@ void * tpark_helper(void * avg)
   
   fd_write = open(vehicle.fifo, O_WRONLY);
   
+  pthread_mutex_lock(&m);
   if(free_places > 0 && closed != 1)
   {
     
     park_state = ENTERING;
-    write_park_log(&vehicle, park_state);
-    write(fd_write, &park_state, sizeof(int));
     free_places--;
-    sleep(vehicle.park_time);
+    write_park_log(&vehicle, park_state);
+    
+    pthread_mutex_lock(&mlog);
+    write(fd_write, &park_state, sizeof(int));
+    pthread_mutex_unlock(&mlog);
+    
+    pthread_mutex_unlock(&m);
+    
+   	struct timespec ts;
+    ts.tv_sec = (time_t) (vehicle.park_time / vehicle.tps);
+    ts.tv_nsec = (long) (((vehicle.park_time / vehicle.tps)-ts.tv_sec) * 1000000000);
+   	//printf("%li + %li\n", ts.tv_sec, ts.tv_nsec);
+    nanosleep(&ts, NULL);
+    
     free_places++;
     park_state = EXITING;
-    write_park_log(&vehicle, park_state);
-    write(fd_write, &park_state, sizeof(int));
+
   }
   else if(closed == 1)
   {
+  	pthread_mutex_unlock(&m);
     park_state = CLOSED;
-    write_park_log(&vehicle, park_state);
-    write(fd_write, &park_state, sizeof(int));
   }
   else if(free_places <= 0)
   {
+  	pthread_mutex_unlock(&m);
     park_state = FULL;
-    write_park_log(&vehicle, park_state);
-    write(fd_write, &park_state, sizeof(int));
   }
-  
-  
+  write(fd_write, &park_state, sizeof(int));
+
+	pthread_mutex_lock(&mlog);
+  write(fd_write, &park_state, sizeof(int));
+  pthread_mutex_unlock(&mlog);
+   
   close(fd_write);
-  return NULL;
+  pthread_exit(NULL);
 }
 
 void * tcontroller_N(void * avg)
@@ -85,9 +101,9 @@ void * tcontroller_N(void * avg)
  
 
   close(fd);
+  unlink(FIFON);
   printf("exiting N\n");
-  pthread_exit(0);
-  return NULL;
+  pthread_exit(NULL);
 }
 
 void * tcontroller_E(void * avg)
@@ -115,9 +131,9 @@ void * tcontroller_E(void * avg)
   
   
   close(fd);
+  unlink(FIFOE);
   printf("exiting E\n");
-  pthread_exit(0);
-  return NULL;
+  pthread_exit(NULL);
 }
 
 void * tcontroller_W(void * avg)
@@ -145,9 +161,9 @@ void * tcontroller_W(void * avg)
   
   
   close(fd);
+  unlink(FIFOW);
   printf("exiting W\n");
-  pthread_exit(0);
-  return NULL;
+  pthread_exit(NULL);
 }
 
 void * tcontroller_S(void * avg)
@@ -174,9 +190,9 @@ void * tcontroller_S(void * avg)
   }
   
   close(fd);
+  unlink(FIFOS);
   printf("exiting S\n");
-  pthread_exit(0);
-  return NULL;
+  pthread_exit(NULL);
 }
 
 void create_park_log()
@@ -238,19 +254,29 @@ int main(int argc, const char * argv[])
     int fdN, fdS, fdW, fdE;
     pthread_t tidN, tidS, tidW, tidE;
     Vehicle* vehicle_stop = (Vehicle*) malloc(sizeof(Vehicle));
+    vehicle_stop->id = 0;
     
     //test arguments
     if(argc != 3)
     {
-      printf("Usage %s <FREE_SPOTS_NUMBER> <TIME_UNTIL_CLOSE>\n", argv[0]);
+      printf("Usage %s <FREE_SPOTS_NUMBER> <TIME_UNTIL_CLOSE_IN_SEC>\n", argv[0]);
       free(vehicle_stop);
       return 1;
     }
-    closed = 0;
-    
+       
     //variable initialization
     free_places = fplaces = atoi(argv[1]);
     duration = atoi(argv[2]);
+    
+    if(duration < 1)
+    {
+      perror("Open park time must be greater than 1\n");
+      free(vehicle_stop);
+      return 2;
+    }
+    
+    //semaphore
+    sem_t* semaphore = sem_open(SEM_NAME, O_CREAT,0600,1);
     create_park_log();
         
     //creating threads and executing
@@ -259,7 +285,7 @@ int main(int argc, const char * argv[])
     pthread_create(&tidW, NULL, tcontroller_W, NULL); 
     pthread_create(&tidE, NULL, tcontroller_E, NULL); 
    
-   
+   	closed = 0;
     sleep(duration);
     closed = 1;
     
@@ -269,11 +295,13 @@ int main(int argc, const char * argv[])
     fdE = open(FIFOE, O_WRONLY);
     
     //creating the stop vehicle and closing program
-    vehicle_stop->id = 0;
+    sem_wait(semaphore); //not sending vehicle at the same time
     write(fdN, &vehicle_stop, sizeof(Vehicle));
     write(fdS, &vehicle_stop, sizeof(Vehicle));
     write(fdW, &vehicle_stop, sizeof(Vehicle));
     write(fdE, &vehicle_stop, sizeof(Vehicle));
+		sem_post(semaphore);
+		sem_close(semaphore);
 
     free(vehicle_stop);
     close(fdN);
@@ -286,7 +314,8 @@ int main(int argc, const char * argv[])
     pthread_join(tidW,NULL);
     pthread_join(tidE,NULL);
     
-    unlink(FIFON); unlink(FIFOS); unlink(FIFOE); unlink(FIFOW);
+    sem_unlink(SEM_NAME);
+    //unlink(FIFON); unlink(FIFOS); unlink(FIFOE); unlink(FIFOW);
     pthread_exit(NULL);
     return 0;
 }

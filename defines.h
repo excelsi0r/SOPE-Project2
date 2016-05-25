@@ -1,11 +1,12 @@
 #define FIFON "/tmp/fifoN"
 #define FIFOS "/tmp/fifoS"
-#define FIFOW "/tmp/fifoO"
+#define FIFOW "/tmp/fifoW"
 #define FIFOE "/tmp/fifoE"
 
 #define GENERATOR_LOG   "generate_log.log"
 #define PARK_LOG        "park_log.log"
 #define LOG             "general_log.log"
+#define SEM_NAME				"/sem"
 
 #define ENTERING 1 
 #define EXITING 2

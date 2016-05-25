@@ -7,9 +7,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <semaphore.h>
 #include "defines.h"
 
 int log_generator;
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 
 void write_generator_log(Vehicle * v, int state);
 
@@ -49,14 +51,9 @@ void * tvehicle(void * avg)
   Vehicle v = *(Vehicle *) avg;    
   
   pthread_detach(pthread_self());
-  //printf("%d - %c - %f - %s\n",v.id ,v.port,v.park_time, v.fifo);
-  
-  // gerar restantes caracteristicas, porta, tempo estacionamento
-  //criar fifo unico para leitura, abrir RW para não bloquear (nome do FIFO unico imporatante)
-  //cuidado semaforo 
-  //sem_wait() iniciar a 1
-  
-  
+	sem_t * semaphore = sem_open(SEM_NAME, O_CREAT, 0600, 1);
+	mkfifo(v.fifo, 0600);
+  sem_wait(semaphore);
   if(v.port == 'N')
   {
     fd_write = open(FIFON, O_WRONLY | O_NONBLOCK);
@@ -82,38 +79,37 @@ void * tvehicle(void * avg)
   {
     write(fd_write, &v, sizeof(Vehicle));
     close(fd_write);
-    
-    unlink(v.fifo);
-    mkfifo(v.fifo, 0600);
-    fd_read = open(v.fifo, O_RDONLY);
   
+    sem_post(semaphore);
+    sem_close(semaphore);
+ 		fd_read = open(v.fifo, O_RDONLY);
+ 		
    if(fd_read != -1)
     {
       read(fd_read, &park_state, sizeof(int));
-      if(park_state == FULL || park_state == CLOSED)
-      {
-         write_generator_log(&v, park_state);  
-         close(fd_read);
-         unlink(v.fifo);  
-         pthread_exit(0);
-      }
-      write_generator_log(&v, park_state);  
-      read(fd_read, &park_state, sizeof(int));
-      write_generator_log(&v, park_state);      
+			pthread_mutex_lock(&m);
+      write_generator_log(&v, park_state); 
+      pthread_mutex_unlock(&m); 
+      read(fd_read, &park_state, sizeof(int));   
     }
   }
   else
   {
+  	sem_post(semaphore);
+    sem_close(semaphore);
    // printf("Parque fechado\n");
+   	park_state = CLOSED;
   }
   
-  close(fd_read);
+  //close(fd_read);
   unlink(v.fifo);
+	pthread_mutex_lock(&m);
+  write_generator_log(&v, park_state); 
+  pthread_mutex_unlock(&m); 
   //sem_post
   
   
-  pthread_exit(0);
-  return NULL;
+  pthread_exit(NULL);
 }
 
 void create_generator_log()
@@ -207,6 +203,7 @@ int main(int argc, const char * argv[])
           struct timespec ts;
           ts.tv_sec = (time_t) time_unit;
           ts.tv_nsec = (long) ((time_unit - ts.tv_sec) * 1000000000);
+         	//printf("%li + %li\n", ts.tv_sec, ts.tv_nsec);
           nanosleep(&ts, NULL);
           elapsed_time += time_unit;
         }              

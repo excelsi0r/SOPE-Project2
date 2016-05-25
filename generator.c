@@ -49,7 +49,7 @@ void * tvehicle(void * avg)
   Vehicle v = *(Vehicle *) avg;    
   
   pthread_detach(pthread_self());
-  printf("%d - %c - %f - %s\n",v.id ,v.port,v.park_time, v.fifo);
+  //printf("%d - %c - %f - %s\n",v.id ,v.port,v.park_time, v.fifo);
   
   // gerar restantes caracteristicas, porta, tempo estacionamento
   //criar fifo unico para leitura, abrir RW para não bloquear (nome do FIFO unico imporatante)
@@ -104,7 +104,7 @@ void * tvehicle(void * avg)
   }
   else
   {
-    printf("Parque fechado\n");
+   // printf("Parque fechado\n");
   }
   
   close(fd_read);
@@ -188,7 +188,7 @@ int main(int argc, const char * argv[])
     //test arguments
     if(argc != 3)
     {
-      printf("Usage %s <GENERATOR_TIME> <TIME_UNIT_BETWEEN_ACTIONS>\n", argv[0]);
+      printf("Usage %s <GENERATOR_TIME_SEC> <TICKS_UNIT_BETWEEN_ACTIONS>\n", argv[0]);
       free(v);
       return 1;
     }
@@ -199,19 +199,26 @@ int main(int argc, const char * argv[])
     duration = (double) atoi(argv[1]);
     create_generator_log();
     
-    
      while(elapsed_time <= duration)
      {
         int rn = rand() % 10;
         if(rn < 3)
         {
-          sleep(time_unit);
+          struct timespec ts;
+          ts.tv_sec = (time_t) time_unit;
+          ts.tv_nsec = (long) ((time_unit - ts.tv_sec) * 1000000000);
+          nanosleep(&ts, NULL);
           elapsed_time += time_unit;
         }              
         else if(rn < 5)
         {
-            sleep(2*time_unit);
-            elapsed_time += 2*time_unit;
+            struct timespec ts;
+            double timetemp = 2*time_unit;
+            ts.tv_sec = (time_t) timetemp;
+            ts.tv_nsec = (long) ((timetemp - ts.tv_sec) * 1000000000);
+            nanosleep(&ts, NULL);
+            sleep(timetemp);
+            elapsed_time += timetemp;
         }
         else{}
         

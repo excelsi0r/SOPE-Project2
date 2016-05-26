@@ -46,14 +46,17 @@ void generate_time(Vehicle* v, long initial_t, double time_unit, long ticks_per_
 
 void * tvehicle(void * avg)
 {
+	pthread_detach(pthread_self());
   int park_state = 0;
   int fd_write, fd_read;
   Vehicle v = *(Vehicle *) avg;    
   
-  pthread_detach(pthread_self());
+  
 	sem_t * semaphore = sem_open(SEM_NAME, O_CREAT, 0600, 1);
+	unlink(v.fifo);
 	mkfifo(v.fifo, 0600);
   sem_wait(semaphore);
+  
   if(v.port == 'N')
   {
     fd_write = open(FIFON, O_WRONLY | O_NONBLOCK);
@@ -79,14 +82,15 @@ void * tvehicle(void * avg)
   {
     write(fd_write, &v, sizeof(Vehicle));
     close(fd_write);
-  
-    sem_post(semaphore);
-    sem_close(semaphore);
  		fd_read = open(v.fifo, O_RDONLY);
+ 		
+ 		sem_post(semaphore);
+    sem_close(semaphore);
  		
    if(fd_read != -1)
     {
-      read(fd_read, &park_state, sizeof(int));
+    	
+      read(fd_read, &park_state, sizeof(int));    
 			pthread_mutex_lock(&m);
       write_generator_log(&v, park_state); 
       pthread_mutex_unlock(&m); 
@@ -103,6 +107,7 @@ void * tvehicle(void * avg)
   
   //close(fd_read);
   unlink(v.fifo);
+  free(avg);
 	pthread_mutex_lock(&m);
   write_generator_log(&v, park_state); 
   pthread_mutex_unlock(&m); 
@@ -179,13 +184,12 @@ int main(int argc, const char * argv[])
     double elapsed_time = 0.0;
     int id = 1;
     double duration;
-    Vehicle* v = (Vehicle*) malloc(sizeof(Vehicle));
+    
     
     //test arguments
     if(argc != 3)
     {
       printf("Usage %s <GENERATOR_TIME_SEC> <TICKS_UNIT_BETWEEN_ACTIONS>\n", argv[0]);
-      free(v);
       return 1;
     }
     
@@ -219,17 +223,19 @@ int main(int argc, const char * argv[])
         }
         else{}
         
+        Vehicle* v = (Vehicle*) malloc(sizeof(Vehicle));
         v->id = id;
         id++;
         generate_port(v);
         generate_time(v,(long) tps*elapsed_time,time_unit, tps);
         generate_fifo_name(v);
         
+       // printf("Created vehicle: %d\n",v->id);
         pthread_create(&tid, NULL, tvehicle, v);     
         
      }
+     printf("what\n");
      
-     free(v);
      pthread_exit(NULL);
 }
   

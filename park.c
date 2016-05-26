@@ -36,10 +36,11 @@ void * tpark_helper(void * avg)
     
     park_state = ENTERING;
     free_places--;
-    write_park_log(&vehicle, park_state);
+    write(fd_write, &park_state, sizeof(int));
+    
     
     pthread_mutex_lock(&mlog);
-    write(fd_write, &park_state, sizeof(int));
+    write_park_log(&vehicle, park_state);
     pthread_mutex_unlock(&mlog);
     
     pthread_mutex_unlock(&m);
@@ -67,7 +68,7 @@ void * tpark_helper(void * avg)
   write(fd_write, &park_state, sizeof(int));
 
 	pthread_mutex_lock(&mlog);
-  write(fd_write, &park_state, sizeof(int));
+  write_park_log(&vehicle, park_state);
   pthread_mutex_unlock(&mlog);
    
   close(fd_write);
@@ -79,24 +80,28 @@ void * tcontroller_N(void * avg)
  
   int fd;
   Vehicle vehicle;
+  int read_fd;
  
-  
   mkfifo(FIFON, 0600);
   fd = open(FIFON, O_RDONLY); 
 
-  
-  while(read(fd, &vehicle, sizeof(vehicle)) != 0)
+
+  while(1)
   {
-     if(vehicle.id == 0)
-     {
-      closed = 1;
-      break;
-     }
-     else
-     {
-        pthread_t tid;
-        pthread_create(&tid, NULL, tpark_helper, &vehicle);      
-     }
+  	 read_fd = read(fd, &vehicle, sizeof(Vehicle));
+  	 //printf("%d\n",read_fd);
+  	 
+
+			 if(vehicle.id == 0)
+			 {
+				break;
+			 }
+			 else if(read_fd > 0 )
+			 {
+				  pthread_t tid;
+				  pthread_create(&tid, NULL, tpark_helper, &vehicle);      
+			 }
+		 
   }
  
 
@@ -110,23 +115,27 @@ void * tcontroller_E(void * avg)
 {
   int fd;
   Vehicle vehicle; 
+  int read_fd;
    
   mkfifo(FIFOE, 0600);
   fd = open(FIFOE, O_RDONLY);   
 
-  while(read(fd, &vehicle, sizeof(vehicle)) != 0)
+  while(1)
   {
-
-     if(vehicle.id == 0)
-     {
-     closed = 1;
-      break;
-     }
-     else
-     {
-        pthread_t tid;
-        pthread_create(&tid, NULL, tpark_helper, &vehicle);      
-     }
+  	 read_fd = read(fd, &vehicle, sizeof(Vehicle));
+  	// printf("%d\n",read_fd);
+  	 
+		
+			 if(vehicle.id == 0)
+			 {
+				break;
+			 }
+			 else if(read_fd > 0 )
+			 {
+				  pthread_t tid;
+				  pthread_create(&tid, NULL, tpark_helper, &vehicle);      
+			 }
+		 
   }
   
   
@@ -140,23 +149,27 @@ void * tcontroller_W(void * avg)
 {
   int fd;
   Vehicle vehicle; 
+  int read_fd;
    
   mkfifo(FIFOW, 0600);
   fd = open(FIFOW, O_RDONLY);   
 
-  while(read(fd, &vehicle, sizeof(vehicle)) != 0)
+	while(1)
   {
-
-     if(vehicle.id == 0)
-     {
-      closed = 1;
-      break;
-     }
-     else
-     {
-        pthread_t tid;
-        pthread_create(&tid, NULL, tpark_helper, &vehicle);      
-     }
+  	 read_fd = read(fd, &vehicle, sizeof(Vehicle));
+  	 //printf("%d\n",read_fd);
+		
+			 
+			 if(vehicle.id == 0)
+			 {
+				break;
+			 }
+			 else if(read_fd > 0 )
+			 {
+				  pthread_t tid;
+				  pthread_create(&tid, NULL, tpark_helper, &vehicle);      
+			 }
+		 
   }
   
   
@@ -170,23 +183,27 @@ void * tcontroller_S(void * avg)
 {
   int fd;
   Vehicle vehicle; 
+  int read_fd;
    
   mkfifo(FIFOS, 0600);
   
   fd = open(FIFOS, O_RDONLY);   
 
-  while(read(fd, &vehicle, sizeof(vehicle)) != 0)
+	while(1)
   {
-     if(vehicle.id == 0)
-     {
-      closed = 1;
-      break;
-     }
-     else
-     {
-        pthread_t tid;
-        pthread_create(&tid, NULL, tpark_helper, &vehicle);      
-     }
+  	 read_fd = read(fd, &vehicle, sizeof(Vehicle));
+  	 //printf("%d\n",read_fd);
+
+			 if(vehicle.id == 0)
+			 {
+				break;
+			 }
+			 else if(read_fd > 0 )
+			 {
+				  pthread_t tid;
+				  pthread_create(&tid, NULL, tpark_helper, &vehicle);      
+			 
+		 }
   }
   
   close(fd);
@@ -296,10 +313,10 @@ int main(int argc, const char * argv[])
     
     //creating the stop vehicle and closing program
     sem_wait(semaphore); //not sending vehicle at the same time
-    write(fdN, &vehicle_stop, sizeof(Vehicle));
-    write(fdS, &vehicle_stop, sizeof(Vehicle));
-    write(fdW, &vehicle_stop, sizeof(Vehicle));
-    write(fdE, &vehicle_stop, sizeof(Vehicle));
+    write(fdN, vehicle_stop, sizeof(Vehicle));
+    write(fdS, vehicle_stop, sizeof(Vehicle));
+    write(fdW, vehicle_stop, sizeof(Vehicle));
+    write(fdE, vehicle_stop, sizeof(Vehicle));
 		sem_post(semaphore);
 		sem_close(semaphore);
 

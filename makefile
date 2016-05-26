@@ -5,10 +5,10 @@ DEPS = defines.h
 all:	clean park generator
 
 park: 
-	$(CC) park.c -o bin/park $(CFLAGS)
+	$(CC) park.c -o bin/parque $(CFLAGS)
 	
 generator:
-	$(CC) generator.c -o bin/generator $(CFLAGS)
+	$(CC) generator.c -o bin/gerador $(CFLAGS)
 	
 clean:
 	rm bin/*

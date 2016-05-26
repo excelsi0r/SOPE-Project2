@@ -19,14 +19,16 @@ pthread_mutex_t mlog = PTHREAD_MUTEX_INITIALIZER;
 
 void write_park_log(Vehicle * v, int state);
 
+/**Park Helper to process Vehicle upon creation and when the ports are still oepn*/
 void * tpark_helper(void * avg)
 {
   
   Vehicle vehicle = *(Vehicle *) avg; 
   int fd_write;
   int park_state = 0;
-  
   pthread_detach(pthread_self());
+  
+  printf("Reaching Vehicle to park %d\n", vehicle.id);
   
   fd_write = open(vehicle.fifo, O_WRONLY);
   
@@ -48,7 +50,6 @@ void * tpark_helper(void * avg)
    	struct timespec ts;
     ts.tv_sec = (time_t) (vehicle.park_time / vehicle.tps);
     ts.tv_nsec = (long) (((vehicle.park_time / vehicle.tps)-ts.tv_sec) * 1000000000);
-   	//printf("%li + %li\n", ts.tv_sec, ts.tv_nsec);
     nanosleep(&ts, NULL);
     
     free_places++;
@@ -75,6 +76,7 @@ void * tpark_helper(void * avg)
   pthread_exit(NULL);
 }
 
+/**Controller Port North*/
 void * tcontroller_N(void * avg)
 {
  
@@ -89,9 +91,6 @@ void * tcontroller_N(void * avg)
   while(1)
   {
   	 read_fd = read(fd, &vehicle, sizeof(Vehicle));
-  	 //printf("%d\n",read_fd);
-  	 
-
 			 if(vehicle.id == 0)
 			 {
 				break;
@@ -110,7 +109,7 @@ void * tcontroller_N(void * avg)
   printf("exiting N\n");
   pthread_exit(NULL);
 }
-
+/**Controller Port East*/
 void * tcontroller_E(void * avg)
 {
   int fd;
@@ -123,9 +122,6 @@ void * tcontroller_E(void * avg)
   while(1)
   {
   	 read_fd = read(fd, &vehicle, sizeof(Vehicle));
-  	// printf("%d\n",read_fd);
-  	 
-		
 			 if(vehicle.id == 0)
 			 {
 				break;
@@ -144,7 +140,7 @@ void * tcontroller_E(void * avg)
   printf("exiting E\n");
   pthread_exit(NULL);
 }
-
+/**Controller Port West*/
 void * tcontroller_W(void * avg)
 {
   int fd;
@@ -156,10 +152,7 @@ void * tcontroller_W(void * avg)
 
 	while(1)
   {
-  	 read_fd = read(fd, &vehicle, sizeof(Vehicle));
-  	 //printf("%d\n",read_fd);
-		
-			 
+  	 read_fd = read(fd, &vehicle, sizeof(Vehicle));	 
 			 if(vehicle.id == 0)
 			 {
 				break;
@@ -178,7 +171,7 @@ void * tcontroller_W(void * avg)
   printf("exiting W\n");
   pthread_exit(NULL);
 }
-
+/**Controller Port South*/
 void * tcontroller_S(void * avg)
 {
   int fd;
@@ -192,9 +185,7 @@ void * tcontroller_S(void * avg)
 	while(1)
   {
   	 read_fd = read(fd, &vehicle, sizeof(Vehicle));
-  	 //printf("%d\n",read_fd);
-
-			 if(vehicle.id == 0)
+  	 if(vehicle.id == 0)
 			 {
 				break;
 			 }
@@ -211,7 +202,7 @@ void * tcontroller_S(void * avg)
   printf("exiting S\n");
   pthread_exit(NULL);
 }
-
+/**Fuction to create log */
 void create_park_log()
 {
   FILE* file = fopen(PARK_LOG, "w");
@@ -221,7 +212,7 @@ void create_park_log()
   write(log_park, str, strlen(str));
    
 }
-
+/**Fuction to Write in log*/
 void write_park_log(Vehicle * v, int state)
 {
   long ticks = v->initial_tick;
@@ -260,9 +251,10 @@ void write_park_log(Vehicle * v, int state)
   }
   
   write(log_park, str, strlen(str));
+  printf("Vehicle %d state: %s\n",id,observ);
   
 }
-
+/**Main fuction to initiate controllers*/
 int main(int argc, const char * argv[])
 {
     //variables declaration

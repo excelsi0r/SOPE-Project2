@@ -15,11 +15,13 @@ pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 
 void write_generator_log(Vehicle * v, int state);
 
+/**Function to generate fifo unique name for vehicle*/
 void generate_fifo_name(Vehicle* v)
 {
   sprintf(v->fifo,"%s%d","fifo",v->id);
 }
 
+/**Function to random generate port for Vehicle*/
 void generate_port(Vehicle* v)
 {
   int p = rand() % 4;
@@ -36,6 +38,7 @@ void generate_port(Vehicle* v)
   return;
 }
 
+/**Function to random generate time for Vehicle*/
 void generate_time(Vehicle* v, long initial_t, double time_unit, long ticks_per_sec)
 {
   v->initial_tick = initial_t;
@@ -44,6 +47,7 @@ void generate_time(Vehicle* v, long initial_t, double time_unit, long ticks_per_
   return;
 }
 
+/**Vehicle independent Thread*/
 void * tvehicle(void * avg)
 {
 	pthread_detach(pthread_self());
@@ -101,22 +105,17 @@ void * tvehicle(void * avg)
   {
   	sem_post(semaphore);
     sem_close(semaphore);
-   // printf("Parque fechado\n");
    	park_state = CLOSED;
   }
   
-  //close(fd_read);
   unlink(v.fifo);
   free(avg);
 	pthread_mutex_lock(&m);
   write_generator_log(&v, park_state); 
-  pthread_mutex_unlock(&m); 
-  //sem_post
-  
-  
+  pthread_mutex_unlock(&m);  
   pthread_exit(NULL);
 }
-
+/**Function to generate log*/
 void create_generator_log()
 {
   FILE* file = fopen(GENERATOR_LOG, "w");
@@ -128,6 +127,7 @@ void create_generator_log()
    
 }
 
+/**Write in the generator Log*/
 void write_generator_log(Vehicle * v, int state)
 {
   //"t(ticks) ; id_viat ; destin ; t_estacion ; t_vida ; observ\n";
@@ -172,7 +172,7 @@ void write_generator_log(Vehicle * v, int state)
   write(log_generator, str, strlen(str));
 }
 
-
+/**Main funcion to Random create Vehicles with probabilities*/
 int main(int argc, const char * argv[])
 {
     srand(time(NULL));
@@ -230,7 +230,7 @@ int main(int argc, const char * argv[])
         generate_time(v,(long) tps*elapsed_time,time_unit, tps);
         generate_fifo_name(v);
         
-       // printf("Created vehicle: %d\n",v->id);
+       	printf("Created vehicle: %d\n",v->id);
         pthread_create(&tid, NULL, tvehicle, v);     
         
      }
